@@ -148,7 +148,7 @@ class SMTPConnection(object):
             raise SendMailException(msg, 503)
 
     def setup(self):
-        host, port = self.smtp_endpoint
+        user, host, port = self.smtp_endpoint
         if port in (SMTP_OVER_SSL_PORT, SMTP_OVER_SSL_TEST_PORT):
             self.connection = SMTP_SSL(timeout=SMTP_TIMEOUT)
             self._connect(host, port)
@@ -215,10 +215,11 @@ class SMTPConnection(object):
 
     # Password authentication
     def smtp_password(self):
+        user, host, port = self.smtp_endpoint
         c = self.connection
 
         try:
-            c.login(self.email_address, self.auth_token)
+            c.login(user, self.auth_token)
         except smtplib.SMTPAuthenticationError as e:
             self.log.error('SMTP login refused', exc=e)
             raise SendMailException(

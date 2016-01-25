@@ -18,6 +18,7 @@ from inbox.models.message import Message
 from inbox.models.folder import Folder
 from inbox.models.mixins import HasRunState
 from inbox.models.label import Label
+from inbox.models.constants import MAX_INDEXABLE_LENGTH
 from inbox.util.misc import cleanup_subject
 
 PROVIDER = 'imap'
@@ -27,9 +28,11 @@ class ImapAccount(Account):
     id = Column(ForeignKey(Account.id, ondelete='CASCADE'),
                 primary_key=True)
 
+    _imap_server_user = Column(String(MAX_INDEXABLE_LENGTH), nullable=True)
     _imap_server_host = Column(String(255), nullable=True)
     _imap_server_port = Column(Integer, nullable=False, server_default='993')
 
+    _smtp_server_user = Column(String(MAX_INDEXABLE_LENGTH), nullable=True)
     _smtp_server_host = Column(String(255), nullable=True)
     _smtp_server_port = Column(Integer, nullable=False, server_default='587')
 
@@ -40,26 +43,28 @@ class ImapAccount(Account):
             # mysqlclient returns Integer columns as type long, and
             # socket.getaddrinfo in older versions of Python 2.7 fails to
             # handle ports of type long. Yay. http://bugs.python.org/issue8853.
-            return (self._imap_server_host, int(self._imap_server_port))
+            return (self._imap_server_user, self._imap_server_host, int(self._imap_server_port))
         else:
             return self.provider_info['imap']
 
     @imap_endpoint.setter
     def imap_endpoint(self, endpoint):
-        host, port = endpoint
+        user, host, port = endpoint
+        self._imap_server_user = user
         self._imap_server_host = host
         self._imap_server_port = int(port)
 
     @property
     def smtp_endpoint(self):
         if self._smtp_server_host is not None:
-            return (self._smtp_server_host, int(self._smtp_server_port))
+            return (self._smtp_server_user, self._smtp_server_host, int(self._smtp_server_port))
         else:
             return self.provider_info['smtp']
 
     @smtp_endpoint.setter
     def smtp_endpoint(self, endpoint):
-        host, port = endpoint
+        user, host, port = endpoint
+        self._smtp_server_user = user
         self._smtp_server_host = host
         self._smtp_server_port = int(port)
 
