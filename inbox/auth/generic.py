@@ -46,9 +46,11 @@ class GenericAuthHandler(AuthHandler):
         account.date = datetime.datetime.utcnow()
         account.provider = self.provider_name
         if self.provider_name == 'custom':
-            account.imap_endpoint = (response['imap_server_host'],
+            account.imap_endpoint = (response['imap_server_user'],
+                                     response['imap_server_host'],
                                      response['imap_server_port'])
-            account.smtp_endpoint = (response['smtp_server_host'],
+            account.smtp_endpoint = (response['smtp_server_user'],
+                                     response['smtp_server_host'],
                                      response['smtp_server_port'])
         # Ensure account has sync enabled after authing.
         account.enable_sync()
@@ -66,32 +68,34 @@ class GenericAuthHandler(AuthHandler):
             If other errors occurred establishing the connection or logging in.
 
         """
-        host, port = account.imap_endpoint
+        user, host, port = account.imap_endpoint
         try:
             conn = create_imap_connection(host, port)
         except (IMAPClient.Error, socket.error) as exc:
             log.error('Error instantiating IMAP connection',
                       account_id=account.id,
                       email=account.email_address,
+                      user=user,
                       host=host,
                       port=port,
                       error=exc)
             raise
 
         try:
-            conn.login(account.email_address, account.password)
+            conn.login(user, account.password)
         except IMAPClient.Error as exc:
             if _auth_is_invalid(exc):
                 log.error('IMAP login failed',
                           account_id=account.id,
                           email=account.email_address,
-                          host=host, port=port,
+                          user=user, host=host, port=port,
                           error=exc)
                 raise ValidationError(exc)
             else:
                 log.error('IMAP login failed for an unknown reason',
                           account_id=account.id,
                           email=account.email_address,
+                          user=user,
                           host=host,
                           port=port,
                           error=exc)
@@ -111,6 +115,7 @@ class GenericAuthHandler(AuthHandler):
                 log.warning('Error issuing IMAP ID command; continuing',
                             account_id=account.id,
                             email=account.email_address,
+                            user=user,
                             host=host,
                             port=port,
                             error=exc)
@@ -186,12 +191,19 @@ class GenericAuthHandler(AuthHandler):
         response = dict(email=email_address, password=pw)
 
         if self.provider_name == 'custom':
-            imap_server_host = raw_input('IMAP server host: ').strip()
-            imap_server_port = raw_input('IMAP server port: ').strip() or 993
-            smtp_server_host = raw_input('SMTP server host: ').strip()
-            smtp_server_port = raw_input('SMTP server port: ').strip() or 587
-            response.update(imap_server_host=imap_server_host,
+            DEFAULT_IMAP_SERVER_PORT = 993
+            DEFAULT_SMTP_SERVER_PORT = 587
+
+            imap_server_user = raw_input("IMAP server user[%s]: " % (email_address,)).strip() or email_address
+            imap_server_host = raw_input("IMAP server host: ").strip()
+            imap_server_port = raw_input("IMAP server port[%d]: " % (DEFAULT_IMAP_SERVER_PORT,)).strip() or DEFAULT_IMAP_SERVER_PORT
+            smtp_server_user = raw_input("SMTP server user[%s]: " % (imap_server_user,)).strip() or imap_server_user
+            smtp_server_host = raw_input("SMTP server host: ").strip()
+            smtp_server_port = raw_input("SMTP server port[%d]: " % (DEFAULT_SMTP_SERVER_PORT,)).strip() or DEFAULT_SMTP_SERVER_PORT
+            response.update(imap_server_user=imap_server_user,
+                            imap_server_host=imap_server_host,
                             imap_server_port=imap_server_port,
+                            smtp_server_user=smtp_server_user,
                             smtp_server_host=smtp_server_host,
                             smtp_server_port=smtp_server_port)
 
